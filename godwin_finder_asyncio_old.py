@@ -71,10 +71,9 @@ async def fetch(loop, page, semaphore, current_depth=0):
                 except socket.gaierror:
                     print("No internet connection")
                     sys.exit(0)
-
-            if check_for_godwin(page, html, current_depth):
-                print("Godwin")
-                pass
+            result, links = check_for_godwin(page, html, current_depth)
+            if result:
+                print("Cancelling other tasks")
                 pending = asyncio.Task.all_tasks(loop)
                 for task in pending:
                     # print(task)
@@ -86,18 +85,59 @@ async def fetch(loop, page, semaphore, current_depth=0):
             print("Task cancelled")
 
 
+async def main(loop):
+    semaphore = asyncio.BoundedSemaphore(SIMULTANEOUS_FETCH)
+
+    wiki_list = ["maison", "avion", "guerre", "test", "bar", "foo"]
+
+    for page in wiki_list:
+        await loop.create_task(fetch(loop, page, semaphore))
+        # await fetch(loop, page, semaphore)
+
+
 if __name__ == "__main__":
+    """
+    
+    Boucle principale, un tour par depth  
+        Depth 0:
+            add 1 task (fetch(start_page)) -> return page 
+            chained coroutine: check_for_godwin(start page)
+            if not success: 
+                chained coroutine: get_all_links(start page) -> return x depth(1)
+            if sucess: 
+                stop all tasks 
+                exit
+        Depth 1: 
+            add x task (fetch(each link)) -> return pages
+            chained coroutine: check_for_godwin(each page)
+            if not success: 
+                chained coroutine: get_all_links(each page) -> return x depth(2)
+            if sucess: 
+                stop all tasks 
+                exit
+        Depth 2:
+            add x task (fetch(each link)) -> return pages
+            chained coroutine: check_for_godwin(each page)
+            if not success: 
+                chained coroutine: get_all_links(each page) -> return x depth(3)
+            if sucess: 
+                stop all tasks 
+                exit
+
+
+    Inconvenients: aucune task de depth n+1 n'est schedulé avant que toutes les task
+    depth n ne soient finis 
+    Sauf si, 
+    
+
+
+    """
+
     try:
         loop = asyncio.get_event_loop()
 
-        semaphore = asyncio.BoundedSemaphore(SIMULTANEOUS_FETCH)
+        loop.run_until_complete(main(loop))
 
-        wiki_list = ["maison", "avion", "guerre", "test", "pipi", "foo"]
-
-        tasks = [fetch(loop, page, semaphore) for page in wiki_list]
-        loop.run_until_complete(asyncio.gather(*tasks))
-
-        # check_page("/wiki/" + args.start_page)
     except KeyboardInterrupt:
         print("Bye bye")
         sys.exit(0)
