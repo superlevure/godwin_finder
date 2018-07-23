@@ -21,54 +21,67 @@ import sys
 etc
 """
 
-MAX_WORKERS = 10
-MAX_TASKS = 10
-
-task_queued = 0
-
-async def task(queue, id="1"):
-    global task_queued
-    sleep_time = 0.5 + random()
-    print('     Begin task #{}'.format(id))
-    await asyncio.sleep(sleep_time)
-    if task_queued < MAX_TASKS:
-        await queue.put(id + ".1")
-        task_queued += 1
-    if task_queued < MAX_TASKS:
-        await queue.put(id + ".2")
-        task_queued += 1
-    print('     End task #{} ({} item(s) in the queue)'.format(id, queue.qsize()))
 
 
-async def worker(worker_id, queue):
-    while True:
-        task_id = await queue.get()
-        print('Worker #{} takes charge of task {}'.format(worker_id, task_id))
-        await task(queue, task_id)
-        queue.task_done()
+class Factory:
+    """
+    Factory
+    """
+
+    def __init__(self, max_workers, max_tasks):
+        self.task_queued = 0
+        self.max_workers = max_workers
+        self.max_tasks = max_tasks
+
+        self.queue = asyncio.Queue()
+
+    async def task(self, task_id):
+        sleep_time = 0.5 + random()
+        print('     Begin task #{}'.format(task_id))
+        await asyncio.sleep(sleep_time)
+    
+        if self.task_queued < self.max_tasks:
+            await self.queue.put(task_id + ".1")
+            self.task_queued += 1
+        if self.task_queued < self.max_tasks:
+            await self.queue.put(task_id + ".2")
+            self.task_queued += 1
+            
+        print('     End task #{} ({} item(s) in the queue)'.format(task_id, self.queue.qsize()))
 
 
-async def main():
-    global task_queued
-    print('Begin main \n')
-    queue = asyncio.Queue()
-    await queue.put("1") # We add one task to the queue
-    task_queued += 1
+    async def worker(self, worker_id):
+        while True:
+            task_id = await self.queue.get()
+            print('Worker #{} takes charge of task {}'.format(worker_id, task_id))
+            await self.task(task_id)
+            self.queue.task_done()
 
-    workers = [asyncio.create_task((worker(worker_id + 1, queue))) for worker_id in range(MAX_WORKERS)]
 
-    await queue.join()
+    async def organize_work(self):
+        print('Begin work \n')
+        
+        await self.queue.put("1") # We add one task to the queue to start
+        self.task_queued += 1
 
-    print('Queue is empty, {} tasks completed'.format(task_queued))
-    for w in workers:
-        w.cancel()
-    print('\n End main')
+        workers = [asyncio.create_task((self.worker(worker_id + 1))) for worker_id in range(self.max_workers)]
+
+        await self.queue.join()
+
+        print('Queue is empty, {} tasks completed'.format(self.task_queued))
+        for w in workers:
+            w.cancel()
+        print('\nEnd work')
+
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
 
+    factory = Factory(max_workers=3, max_tasks=50)
+
     try:
-        loop.run_until_complete(main())
+        loop.run_until_complete(factory.organize_work())
+
     except KeyboardInterrupt:
         print('\nBye bye')
         sys.exit(0)
