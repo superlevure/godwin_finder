@@ -15,9 +15,10 @@ def print_ident(string, ident):
     print(ident.count(".") * "    " + string)
 
 
-async def task(nursery, task_id, lock):
+async def task(nursery, task_id, lock, task_status=trio.TASK_STATUS_IGNORED):
     global task_completed, task_queued
 
+    task_status.started()
     async with lock:
         print_ident(f"Begin task #{task_id}", task_id)
         await trio.sleep(0.5 + random.random())
@@ -28,13 +29,13 @@ async def task(nursery, task_id, lock):
         )
 
     if task_queued < MAX_TASKS:
-        nursery.start_soon(task, nursery, task_id + ".1", lock)
+        await nursery.start(task, nursery, task_id + ".1", lock)
         task_queued += 1
         if task_queued < MAX_TASKS - 1:
-            nursery.start_soon(task, nursery, task_id + ".2", lock)
+            await nursery.start(task, nursery, task_id + ".2", lock)
             task_queued += 1
             if task_queued < MAX_TASKS - 2:
-                nursery.start_soon(task, nursery, task_id + ".3", lock)
+                await nursery.start(task, nursery, task_id + ".3", lock)
                 task_queued += 1
 
 
@@ -45,7 +46,7 @@ async def main():
         async with trio.open_nursery() as nursery:
             lock = trio.CapacityLimiter(MAX_WORKERS)
             print("Begin nursery")
-            nursery.start_soon(task, nursery, "1", lock)
+            await nursery.start(task, nursery, "1", lock)
             task_queued += 1
             print("Waiting for children")
 
