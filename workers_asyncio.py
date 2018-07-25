@@ -1,26 +1,7 @@
 import asyncio
 from random import random
 import sys
-
-"""
-[1]
-[1.1]
-[1.2]
-[1.1.1]
-[1.1.2]
-[1.2.1]
-[1.2.2]
-[1.1.1.1]
-[1.1.1.2]
-[1.1.2.1]
-[1.1.2.2]
-[1.2.1.1]
-[1.2.1.2]
-[1.2.2.1]
-[1.2.2.2]
-etc
-"""
-
+from easy_timing import timer
 
 
 class Factory:
@@ -35,7 +16,6 @@ class Factory:
         self.max_tasks = max_tasks
 
         self.queue = asyncio.Queue()
-
 
     def print_ident(self, string, task_id):
         print((task_id.count(".") + 1) * "    " + string)
@@ -60,7 +40,7 @@ class Factory:
 
         self.task_completed += 1
         self.print_ident(
-            "End task #{} ({} queued, {} completed)".format(
+            "End task #{} ({} in queue, {} completed)".format(
                 task_id, self.queue.qsize(), self.task_completed
             ),
             task_id,
@@ -101,10 +81,11 @@ class Factory:
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
 
-    factory = Factory(max_workers=100, max_tasks=1000)
+    factory = Factory(max_workers=10, max_tasks=100)
 
     try:
-        loop.run_until_complete(factory.organize_work())
+        with timer():
+            loop.run_until_complete(factory.organize_work())
 
     except KeyboardInterrupt:
         print("\nBye bye")
